@@ -19,6 +19,7 @@ export function InverterOverview() {
   const inverterRef = useRef<HTMLDivElement>(null);
   const loadRef = useRef<HTMLDivElement>(null);
   const batteryRef = useRef<HTMLDivElement>(null);
+  const batteryDesktopRef = useRef<HTMLDivElement>(null);
 
   // Calculated connection anchor coordinates
   const [coords, setCoords] = useState<{
@@ -66,20 +67,22 @@ export function InverterOverview() {
       !pvRef.current ||
       !gridRef.current ||
       !inverterRef.current ||
-      !loadRef.current ||
-      !batteryRef.current
+      !loadRef.current
     )
       return;
+
+    const mobileCheck = window.innerWidth < 768;
+    setIsMobile(mobileCheck);
+
+    const targetBatRef = mobileCheck ? batteryRef.current : batteryDesktopRef.current;
+    if (!targetBatRef) return;
 
     const cRect = containerRef.current.getBoundingClientRect();
     const pvR = pvRef.current.getBoundingClientRect();
     const gridR = gridRef.current.getBoundingClientRect();
     const invR = inverterRef.current.getBoundingClientRect();
     const loadR = loadRef.current.getBoundingClientRect();
-    const batR = batteryRef.current.getBoundingClientRect();
-
-    const mobileCheck = window.innerWidth < 768;
-    setIsMobile(mobileCheck);
+    const batR = targetBatRef.getBoundingClientRect();
 
     setCoords({
       pvRight: {
@@ -181,14 +184,40 @@ export function InverterOverview() {
   const isBatteryCharging = battery_charging_current > 0 || (battery_voltage > 12 && (isPvActive || isGridActive));
   const isLoadActive = ac_output_watts > 5;
 
+  // Active Energy Routing Labeling
   let activeSourceLabel = "Utility Grid";
-  if (isPvActive && pv_power > 50) {
+  if (isPvActive && isGridActive && isLoadActive && pv_power < ac_output_watts) {
+    activeSourceLabel = "Solar + Utility Grid";
+  } else if (isPvActive && pv_power > 10) {
     activeSourceLabel = "Solar Array (PV)";
-  } else if (isGridActive) {
-    activeSourceLabel = "Utility Grid";
   } else if (isBatteryDischarging) {
     activeSourceLabel = "Battery Storage";
+  } else if (isGridActive) {
+    activeSourceLabel = "Utility Grid";
   }
+
+  // Utilized Grid Power (Watts) Calculation
+  let gridUtilizedWatts = 0;
+  if (isGridActive) {
+    if (isPvActive && isLoadActive && pv_power < ac_output_watts) {
+      // Solar covers part of load, remaining comes from Grid
+      gridUtilizedWatts = Math.max(0, ac_output_watts - pv_power);
+    } else if (isPvActive && pv_power >= ac_output_watts) {
+      // Solar fully satisfies load
+      gridUtilizedWatts = 0;
+    } else if (isLoadActive) {
+      // Grid fully powers load
+      gridUtilizedWatts = ac_output_watts;
+    }
+
+    // Add AC battery charging load if applicable
+    if (battery_charging_current > 0 && !isPvActive) {
+      gridUtilizedWatts += Math.round(battery_charging_current * battery_voltage);
+    }
+  }
+
+  // Dynamic Grid animation state: grid is visually active if it's supplying load or charging battery
+  const isGridPowerFlowing = isGridActive && (gridUtilizedWatts > 5 || (battery_charging_current > 0 && !isPvActive));
 
   // Horizontal Bezier Curve helper
   const makeBezierCurve = (p1: Point, p2: Point) => {
@@ -210,7 +239,7 @@ export function InverterOverview() {
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-4">
           <div>
             <h2 className="text-lg font-medium tracking-tight text-card-foreground">
-              Sako Sunon PRO 5.5KW Flow Topology
+              Flow Topology
             </h2>
             <p className="text-xs text-muted-foreground">
               Real-time energy routing: <span className="font-medium text-foreground">{activeSourceLabel}</span> ➔ Load
@@ -251,10 +280,10 @@ export function InverterOverview() {
                     : makeBezierCurve(coords.gridRight, coords.inverterLeft)
                 }
                 fill="none"
-                stroke={isGridActive ? "#0284c7" : "var(--border)"}
-                strokeWidth={isGridActive ? "2.5" : "1.5"}
-                strokeOpacity={isGridActive ? "0.85" : "0.35"}
-                className={isGridActive ? "animate-flow-forward" : ""}
+                stroke={isGridPowerFlowing ? "#0284c7" : "var(--border)"}
+                strokeWidth={isGridPowerFlowing ? "2.5" : "1.5"}
+                strokeOpacity={isGridPowerFlowing ? "0.85" : "0.35"}
+                className={isGridPowerFlowing ? "animate-flow-forward" : ""}
               />
             )}
 
@@ -323,7 +352,12 @@ export function InverterOverview() {
                     </div>
                     <span className="text-xs font-medium text-card-foreground">Solar</span>
                   </div>
-                  {isPvActive && <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-ping" />}
+                  {isPvActive && (
+                    <span className="relative flex h-2 w-2 flex-shrink-0">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                    </span>
+                  )}
                 </div>
                 <div className="mt-2.5">
                   <div className="text-base sm:text-lg font-semibold text-card-foreground">{pv_power} W</div>
@@ -335,7 +369,7 @@ export function InverterOverview() {
               <div
                 ref={gridRef}
                 className={`relative rounded-xl border p-3.5 sm:p-4 transition-all ${
-                  isGridActive
+                  isGridPowerFlowing
                     ? "border-sky-500/30 bg-sky-500/5 dark:bg-sky-500/10 shadow-xs"
                     : "border-border/60 bg-muted/10 opacity-60"
                 }`}
@@ -344,7 +378,7 @@ export function InverterOverview() {
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     <div
                       className={`rounded-lg p-1.5 sm:p-2 ${
-                        isGridActive
+                        isGridPowerFlowing
                           ? "bg-sky-500/15 text-sky-600 dark:text-sky-400"
                           : "bg-muted text-muted-foreground"
                       }`}
@@ -353,11 +387,20 @@ export function InverterOverview() {
                     </div>
                     <span className="text-xs font-medium text-card-foreground">Grid</span>
                   </div>
-                  {isGridActive && <span className="flex h-2 w-2 rounded-full bg-sky-500 animate-ping" />}
+                  {isGridPowerFlowing && (
+                    <span className="relative flex h-2 w-2 flex-shrink-0">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-sky-500" />
+                    </span>
+                  )}
                 </div>
                 <div className="mt-2.5">
-                  <div className="text-base sm:text-lg font-semibold text-card-foreground">{grid_voltage} V</div>
-                  <div className="text-[11px] text-muted-foreground">{grid_frequency} Hz</div>
+                  <div className="text-base sm:text-lg font-semibold text-card-foreground">
+                    {isGridActive ? `${gridUtilizedWatts} W` : "0 W"}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {grid_voltage}V • {grid_frequency}Hz
+                  </div>
                 </div>
               </div>
 
@@ -371,9 +414,9 @@ export function InverterOverview() {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
                     <div
-                      className={`rounded-lg p-1.5 ${
+                      className={`rounded-lg p-1.5 sm:p-2 ${
                         isBatteryDischarging || isBatteryCharging
                           ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                           : "bg-muted text-muted-foreground"
@@ -384,7 +427,10 @@ export function InverterOverview() {
                     <span className="text-xs font-medium text-card-foreground">Battery</span>
                   </div>
                   {(isBatteryCharging || isBatteryDischarging) && (
-                    <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+                    <span className="relative flex h-2 w-2 flex-shrink-0">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                    </span>
                   )}
                 </div>
                 <div className="mt-2.5">
@@ -438,6 +484,7 @@ export function InverterOverview() {
           {/* Desktop-only Bottom Battery Node */}
           <div className="hidden md:flex mt-8 flex-col items-center border-t border-border/50 pt-6">
             <div
+              ref={batteryDesktopRef}
               className="w-full max-w-md rounded-xl border border-border/60 bg-muted/15 p-4 relative z-10 shadow-xs"
             >
               {/* Line 1: Header + Battery Icon + Badges */}
