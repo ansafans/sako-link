@@ -1,26 +1,108 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@layer base {
+  :root {
+    /* Soft, low-contrast light theme palette */
+    --background: #f6f7f9;
+    --foreground: #333d47;
+
+    --card: #ffffff;
+    --card-foreground: #2d3748;
+
+    --popover: #ffffff;
+    --popover-foreground: #2d3748;
+
+    --primary: #4f46e5;
+    --primary-foreground: #ffffff;
+
+    --secondary: #eef2f6;
+    --secondary-foreground: #475569;
+
+    --muted: #edf1f5;
+    --muted-foreground: #64748b;
+
+    --accent: #f1f5f9;
+    --accent-foreground: #1e293b;
+
+    --border: #e2e8f0;
+    --input: #e2e8f0;
+    --ring: #94a3b8;
+  }
+
+  .dark {
+    /* Soft, muted slate dark mode */
+    --background: #11161d;
+    --foreground: #cbd5e1;
+
+    --card: #18202a;
+    --card-foreground: #e2e8f0;
+
+    --popover: #18202a;
+    --popover-foreground: #e2e8f0;
+
+    --primary: #6366f1;
+    --primary-foreground: #ffffff;
+
+    --secondary: #1e293b;
+    --secondary-foreground: #94a3b8;
+
+    --muted: #1c2533;
+    --muted-foreground: #8a99ad;
+
+    --accent: #1e293b;
+    --accent-foreground: #f1f5f9;
+
+    --border: #263344;
+    --input: #263344;
+    --ring: #475569;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* SVG Forward Flow Animation (Input/Load & Battery Charging: Inverter ➔ Battery) */
+@keyframes flowDashForward {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+/* SVG Reverse Flow Animation (Battery Discharging: Battery ➔ Inverter) */
+@keyframes flowDashReverse {
+  to {
+    stroke-dashoffset: 20;
+  }
+}
+
+.animate-flow-forward {
+  stroke-dasharray: 6 6;
+  animation: flowDashForward 1.2s linear infinite;
+}
+
+.animate-flow-reverse {
+  stroke-dasharray: 6 6;
+  animation: flowDashReverse 1.2s linear infinite;
 }
