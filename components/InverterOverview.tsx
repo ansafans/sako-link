@@ -1,8 +1,7 @@
-"use client";
-
 import React, { useRef, useState, useEffect } from "react";
 import { useTelemetry } from "./TelemetryProvider";
 import { Zap, Sun, Battery, Home, Cpu, Thermometer, Radio } from "lucide-react";
+import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
 
 interface Point {
   x: number;
@@ -59,6 +58,71 @@ export function InverterOverview() {
 
   // Dynamic screen size check
   const [isMobile, setIsMobile] = useState<boolean>(false);
+
+  // Raw telemetry values fallback
+  const grid_voltage = latestData?.grid_voltage ?? 0;
+  const grid_frequency = latestData?.grid_frequency ?? 0;
+  const ac_output_voltage = latestData?.ac_output_voltage ?? 0;
+  const ac_output_watts = latestData?.ac_output_watts ?? 0;
+  const output_load_percent = latestData?.output_load_percent ?? 0;
+  const pv_voltage = latestData?.pv_voltage ?? 0;
+  const pv_power = latestData?.pv_power ?? 0;
+  const battery_voltage = latestData?.battery_voltage ?? 0;
+  const battery_charging_current = latestData?.battery_charging_current ?? 0;
+  const battery_soc = latestData?.battery_soc ?? 0;
+  const heatsink_temperature = latestData?.heatsink_temperature ?? 0;
+  const bus_voltage = latestData?.bus_voltage ?? 0;
+
+  // Active Source & Battery State Logic
+  const isPvActive = pv_power > 10 || pv_voltage > 120;
+  const isGridActive = grid_voltage > 100;
+  const isBatteryDischarging = battery_voltage > 12 && (battery_charging_current < 0 || (!isGridActive && !isPvActive));
+  const isBatteryCharging = battery_charging_current > 0 || (battery_voltage > 12 && (isPvActive || isGridActive));
+  const isLoadActive = ac_output_watts > 5;
+
+  // Active Energy Routing Labeling
+  let activeSourceLabel = "Utility Grid";
+  if (isPvActive && isGridActive && isLoadActive && pv_power < ac_output_watts) {
+    activeSourceLabel = "Solar + Utility Grid";
+  } else if (isPvActive && pv_power > 10) {
+    activeSourceLabel = "Solar Array (PV)";
+  } else if (isBatteryDischarging) {
+    activeSourceLabel = "Battery Storage";
+  } else if (isGridActive) {
+    activeSourceLabel = "Utility Grid";
+  }
+
+  // Utilized Grid Power (Watts) Calculation
+  let gridUtilizedWatts = 0;
+  if (isGridActive) {
+    if (isPvActive && isLoadActive && pv_power < ac_output_watts) {
+      gridUtilizedWatts = Math.max(0, ac_output_watts - pv_power);
+    } else if (isPvActive && pv_power >= ac_output_watts) {
+      gridUtilizedWatts = 0;
+    } else if (isLoadActive) {
+      gridUtilizedWatts = ac_output_watts;
+    }
+    if (battery_charging_current > 0 && !isPvActive) {
+      gridUtilizedWatts += Math.round(battery_charging_current * battery_voltage);
+    }
+  }
+
+  // Dynamic Grid animation state
+  const isGridPowerFlowing = isGridActive && (gridUtilizedWatts > 5 || (battery_charging_current > 0 && !isPvActive));
+
+  // Smooth 2.5s numeric interpolation for 3s ESP32 telemetry interval
+  const animPvPower = useAnimatedNumber(pv_power, 2500, 0);
+  const animPvVoltage = useAnimatedNumber(pv_voltage, 2500, 1);
+  const animAcWatts = useAnimatedNumber(ac_output_watts, 2500, 0);
+  const animAcVoltage = useAnimatedNumber(ac_output_voltage, 2500, 1);
+  const animGridVoltage = useAnimatedNumber(grid_voltage, 2500, 1);
+  const animGridFrequency = useAnimatedNumber(grid_frequency, 2500, 1);
+  const animGridUtilizedWatts = useAnimatedNumber(gridUtilizedWatts, 2500, 0);
+  const animBatteryVoltage = useAnimatedNumber(battery_voltage, 2500, 1);
+  const animBatterySoc = useAnimatedNumber(battery_soc, 2500, 0);
+  const animBatteryCurrent = useAnimatedNumber(battery_charging_current, 2500, 1);
+  const animLoadPercent = useAnimatedNumber(output_load_percent, 2500, 0);
+  const animBusVoltage = useAnimatedNumber(bus_voltage, 2500, 0);
 
   // Calculate pixel-perfect coordinates relative to container
   const updateCoordinates = () => {
@@ -162,62 +226,6 @@ export function InverterOverview() {
       </div>
     );
   }
-
-  const {
-    grid_voltage,
-    grid_frequency,
-    ac_output_voltage,
-    ac_output_watts,
-    output_load_percent,
-    pv_voltage,
-    pv_power,
-    battery_voltage,
-    battery_charging_current,
-    battery_soc,
-    heatsink_temperature,
-  } = latestData;
-
-  // Active Source & Battery State Logic
-  const isPvActive = pv_power > 10 || pv_voltage > 120;
-  const isGridActive = grid_voltage > 100;
-  const isBatteryDischarging = battery_voltage > 12 && (battery_charging_current < 0 || (!isGridActive && !isPvActive));
-  const isBatteryCharging = battery_charging_current > 0 || (battery_voltage > 12 && (isPvActive || isGridActive));
-  const isLoadActive = ac_output_watts > 5;
-
-  // Active Energy Routing Labeling
-  let activeSourceLabel = "Utility Grid";
-  if (isPvActive && isGridActive && isLoadActive && pv_power < ac_output_watts) {
-    activeSourceLabel = "Solar + Utility Grid";
-  } else if (isPvActive && pv_power > 10) {
-    activeSourceLabel = "Solar Array (PV)";
-  } else if (isBatteryDischarging) {
-    activeSourceLabel = "Battery Storage";
-  } else if (isGridActive) {
-    activeSourceLabel = "Utility Grid";
-  }
-
-  // Utilized Grid Power (Watts) Calculation
-  let gridUtilizedWatts = 0;
-  if (isGridActive) {
-    if (isPvActive && isLoadActive && pv_power < ac_output_watts) {
-      // Solar covers part of load, remaining comes from Grid
-      gridUtilizedWatts = Math.max(0, ac_output_watts - pv_power);
-    } else if (isPvActive && pv_power >= ac_output_watts) {
-      // Solar fully satisfies load
-      gridUtilizedWatts = 0;
-    } else if (isLoadActive) {
-      // Grid fully powers load
-      gridUtilizedWatts = ac_output_watts;
-    }
-
-    // Add AC battery charging load if applicable
-    if (battery_charging_current > 0 && !isPvActive) {
-      gridUtilizedWatts += Math.round(battery_charging_current * battery_voltage);
-    }
-  }
-
-  // Dynamic Grid animation state: grid is visually active if it's supplying load or charging battery
-  const isGridPowerFlowing = isGridActive && (gridUtilizedWatts > 5 || (battery_charging_current > 0 && !isPvActive));
 
   // Horizontal Bezier Curve helper
   const makeBezierCurve = (p1: Point, p2: Point) => {
@@ -360,8 +368,8 @@ export function InverterOverview() {
                   )}
                 </div>
                 <div className="mt-2.5">
-                  <div className="text-base sm:text-lg font-semibold text-card-foreground">{pv_power} W</div>
-                  <div className="text-[11px] text-muted-foreground">{pv_voltage} V</div>
+                  <div className="text-base sm:text-lg font-semibold text-card-foreground">{animPvPower} W</div>
+                  <div className="text-[11px] text-muted-foreground">{animPvVoltage} V</div>
                 </div>
               </div>
 
@@ -396,10 +404,10 @@ export function InverterOverview() {
                 </div>
                 <div className="mt-2.5">
                   <div className="text-base sm:text-lg font-semibold text-card-foreground">
-                    {isGridActive ? `${gridUtilizedWatts} W` : "0 W"}
+                    {isGridActive ? `${animGridUtilizedWatts} W` : "0 W"}
                   </div>
                   <div className="text-[11px] text-muted-foreground">
-                    {grid_voltage}V • {grid_frequency}Hz
+                    {animGridVoltage}V • {animGridFrequency}Hz
                   </div>
                 </div>
               </div>
@@ -434,8 +442,8 @@ export function InverterOverview() {
                   )}
                 </div>
                 <div className="mt-2.5">
-                  <div className="text-base font-semibold text-card-foreground">{battery_voltage} V</div>
-                  <div className="text-[11px] text-muted-foreground">{battery_soc}% SOC</div>
+                  <div className="text-base font-semibold text-card-foreground">{animBatteryVoltage} V</div>
+                  <div className="text-[11px] text-muted-foreground">{animBatterySoc}% SOC</div>
                 </div>
               </div>
             </div>
@@ -452,7 +460,7 @@ export function InverterOverview() {
                 <Cpu className="h-6 w-6" />
               </div>
               <span className="mt-2 text-xs font-semibold text-card-foreground">Sako Sunon PRO 5.5KW</span>
-              <span className="text-[10px] text-muted-foreground mt-0.5">{latestData.bus_voltage}V DC Bus</span>
+              <span className="text-[10px] text-muted-foreground mt-0.5">{animBusVoltage}V DC Bus</span>
             </div>
 
             {/* Spacer Column 2 */}
@@ -473,9 +481,9 @@ export function InverterOverview() {
                 <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               </div>
               <div className="mt-3">
-                <div className="text-lg font-semibold text-card-foreground">{ac_output_watts} W</div>
+                <div className="text-lg font-semibold text-card-foreground">{animAcWatts} W</div>
                 <div className="text-[11px] text-muted-foreground">
-                  {ac_output_voltage}V • {output_load_percent}% Capacity
+                  {animAcVoltage}V • {animLoadPercent}% Capacity
                 </div>
               </div>
             </div>
@@ -522,7 +530,7 @@ export function InverterOverview() {
                 <div>
                   <div className="text-[11px] text-muted-foreground font-medium">Voltage & SOC</div>
                   <div className="mt-0.5 text-sm font-semibold text-card-foreground">
-                    {battery_voltage} V <span className="text-xs font-normal text-muted-foreground">({battery_soc}%)</span>
+                    {animBatteryVoltage} V <span className="text-xs font-normal text-muted-foreground">({animBatterySoc}%)</span>
                   </div>
                 </div>
 
@@ -530,7 +538,7 @@ export function InverterOverview() {
                 <div className="text-right">
                   <div className="text-[11px] text-muted-foreground font-medium">Current & Temp</div>
                   <div className="mt-0.5 text-xs font-semibold text-card-foreground flex items-center justify-end gap-1.5">
-                    <span>{battery_charging_current} A</span>
+                    <span>{animBatteryCurrent} A</span>
                     <span className="text-muted-foreground">•</span>
                     <span className="flex items-center text-amber-600 dark:text-amber-400">
                       <Thermometer className="h-3 w-3 mr-0.5" />
@@ -546,10 +554,10 @@ export function InverterOverview() {
 
       {/* Primary Key Metric Gauges */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <MetricTile label="Output Load" value={`${output_load_percent}%`} sub={`Max 5500W`} icon={Home} />
-        <MetricTile label="AC Output" value={`${ac_output_voltage}V`} sub={`50.2 Hz`} icon={Zap} />
-        <MetricTile label="Internal Bus" value={`${latestData.bus_voltage}V`} sub="DC Bus" icon={Cpu} />
-        <MetricTile label="PV Voltage" value={`${pv_voltage}V`} sub="Solar Input" icon={Sun} />
+        <MetricTile label="Output Load" value={`${animLoadPercent}%`} sub={`Max 5500W`} icon={Home} />
+        <MetricTile label="AC Output" value={`${animAcVoltage}V`} sub={`${animGridFrequency} Hz`} icon={Zap} />
+        <MetricTile label="Internal Bus" value={`${animBusVoltage}V`} sub="DC Bus" icon={Cpu} />
+        <MetricTile label="PV Voltage" value={`${animPvVoltage}V`} sub="Solar Input" icon={Sun} />
       </div>
     </div>
   );
