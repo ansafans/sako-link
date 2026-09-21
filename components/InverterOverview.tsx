@@ -210,7 +210,7 @@ export function InverterOverview() {
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-4">
           <div>
             <h2 className="text-lg font-medium tracking-tight text-card-foreground">
-              Sako Sunon Pro 5.5Kw Flow Topology
+              Sako Sunon PRO 5.5KW Flow Topology
             </h2>
             <p className="text-xs text-muted-foreground">
               Real-time energy routing: <span className="font-medium text-foreground">{activeSourceLabel}</span> ➔ Load
@@ -405,7 +405,7 @@ export function InverterOverview() {
               <div className="rounded-xl bg-primary/10 p-3 text-primary">
                 <Cpu className="h-6 w-6" />
               </div>
-              <span className="mt-2 text-xs font-semibold text-card-foreground">Sako Sunon Pro 5.5Kw</span>
+              <span className="mt-2 text-xs font-semibold text-card-foreground">Sako Sunon PRO 5.5KW</span>
               <span className="text-[10px] text-muted-foreground mt-0.5">{latestData.bus_voltage}V DC Bus</span>
             </div>
 
