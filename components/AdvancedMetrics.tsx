@@ -306,9 +306,15 @@ export function AdvancedMetrics() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.08} />
-                <XAxis dataKey={timeRange === "30d" ? "dateLabel" : "timestamp"} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
+                <XAxis
+                  dataKey="fullTimestamp"
+                  tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
+                  interval="preserveStartEnd"
+                  minTickGap={30}
+                />
                 <YAxis domain={[0, "auto"]} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
                 <Tooltip
+                  labelFormatter={(label) => `Time: ${label}`}
                   contentStyle={{
                     backgroundColor: "var(--card)",
                     borderColor: "var(--border)",
