@@ -36,7 +36,26 @@ export function AdvancedMetrics() {
         const res = await fetch(url);
         const json = await res.json();
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          setHistoricalData(json.data);
+          // Convert recorded_at to user's exact client browser local timezone
+          const formattedRows = json.data.map((row: any) => {
+            const d = new Date(row.recorded_at);
+            const timeStr = d.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: true,
+            });
+            const dateStr = d.toLocaleDateString([], {
+              month: "short",
+              day: "numeric",
+            });
+            return {
+              ...row,
+              fullTimestamp: `${dateStr} ${timeStr}`,
+              dateLabel: `${dateStr} ${timeStr}`,
+            };
+          });
+          setHistoricalData(formattedRows);
         } else {
           setHistoricalData([]);
         }

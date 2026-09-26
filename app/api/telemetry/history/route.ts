@@ -34,29 +34,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, data: [], error: error.message }, { status: 500 });
     }
 
-    // Transform recorded_at to displayable local timestamp using exact database timestamp
-    const formattedData = (data || []).map((row) => {
-      const recDate = new Date(row.recorded_at);
-      const timeStr = recDate.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true,
-      });
-      const dateStr = recDate.toLocaleDateString([], {
-        month: "short",
-        day: "numeric",
-      });
-
-      return {
-        ...row,
-        timestamp: `${timeStr}`,
-        fullTimestamp: `${dateStr} ${timeStr}`,
-        dateLabel: `${dateStr} ${timeStr}`,
-      };
-    });
-
-    return NextResponse.json({ success: true, data: formattedData });
+    return NextResponse.json({ success: true, data: data || [] });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ success: false, data: [], error: message }, { status: 500 });
