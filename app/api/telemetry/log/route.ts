@@ -74,17 +74,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Save record to Supabase
-    const { data, error } = await supabase.from("inverter_telemetry").insert([
-      {
-        pv_power,
-        ac_output_watts,
-        grid_watts,
-        bus_voltage,
-        heatsink_temperature,
-        recorded_at: new Date().toISOString(),
-      },
-    ]);
+    // Save full snapshot record to Supabase
+    const insertObj: Record<string, any> = {
+      pv_power,
+      ac_output_watts,
+      grid_watts,
+      bus_voltage,
+      heatsink_temperature,
+      recorded_at: new Date().toISOString(),
+    };
+
+    if (parsed) {
+      insertObj.grid_voltage = parsed.grid_voltage;
+      insertObj.grid_frequency = parsed.grid_frequency;
+      insertObj.ac_output_voltage = parsed.ac_output_voltage;
+      insertObj.ac_output_frequency = parsed.ac_output_frequency;
+      insertObj.ac_output_va = parsed.ac_output_va;
+      insertObj.output_load_percent = parsed.output_load_percent;
+      insertObj.battery_voltage = parsed.battery_voltage;
+      insertObj.battery_charging_current = parsed.battery_charging_current;
+      insertObj.battery_soc = parsed.battery_soc;
+      insertObj.pv_voltage = parsed.pv_voltage;
+      insertObj.pv_current = parsed.pv_current;
+    }
+
+    const { data, error } = await supabase.from("inverter_telemetry").insert([insertObj]);
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -13,4 +13,15 @@ export interface SupabaseTelemetryRow {
   grid_watts: number;
   bus_voltage: number;
   heatsink_temperature: number;
+  grid_voltage?: number;
+  grid_frequency?: number;
+  ac_output_voltage?: number;
+  ac_output_frequency?: number;
+  ac_output_va?: number;
+  output_load_percent?: number;
+  battery_voltage?: number;
+  battery_charging_current?: number;
+  battery_soc?: number;
+  pv_voltage?: number;
+  pv_current?: number;
 }
