@@ -36,17 +36,56 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
   const [mqttError, setMqttError] = useState<string | null>(null);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
 
+  const lastLogTimeRef = React.useRef<number>(0);
+
   const pushRawPayload = useCallback((payload: string) => {
     const now = new Date();
     setLastFetchTime(now);
     setRawPayload(payload);
     const parsed = parseTelemetryPayload(payload);
     if (parsed) {
-      setLatestData({
+      const fullItem = {
         ...parsed,
         timestamp: now.toLocaleTimeString(),
-      });
-      setHistory((prev) => [...prev.slice(-49), { ...parsed, timestamp: now.toLocaleTimeString() }]);
+      };
+      setLatestData(fullItem);
+      setHistory((prev) => [...prev.slice(-49), fullItem]);
+
+      // Throttle database persistence to 1-minute intervals (60,000ms)
+      const nowMs = Date.now();
+      if (nowMs - lastLogTimeRef.current >= 60000) {
+        lastLogTimeRef.current = nowMs;
+
+        // Calculate grid watts
+        const isPvActive = parsed.pv_power > 10 || parsed.pv_voltage > 120;
+        const isGridActive = parsed.grid_voltage > 100;
+        const isLoadActive = parsed.ac_output_watts > 5;
+        let gridWatts = 0;
+        if (isGridActive) {
+          if (isPvActive && isLoadActive && parsed.pv_power < parsed.ac_output_watts) {
+            gridWatts = Math.max(0, parsed.ac_output_watts - parsed.pv_power);
+          } else if (!isPvActive && isLoadActive) {
+            gridWatts = parsed.ac_output_watts;
+          }
+          if (parsed.battery_charging_current > 0 && !isPvActive) {
+            gridWatts += Math.round(parsed.battery_charging_current * parsed.battery_voltage);
+          }
+        }
+
+        fetch("/api/telemetry/log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pv_power: parsed.pv_power,
+            ac_output_watts: parsed.ac_output_watts,
+            grid_watts: gridWatts,
+            bus_voltage: parsed.bus_voltage,
+            heatsink_temperature: parsed.heatsink_temperature,
+          }),
+        }).catch((err) => {
+          console.warn("Supabase telemetry log error:", err);
+        });
+      }
     }
   }, []);
 
