@@ -372,6 +372,131 @@ export function AdvancedMetrics() {
             </ResponsiveContainer>
           </div>
         </div>
+
+        {/* Historical Energy Consumption & Summary Statistics Panel */}
+        {historicalData.length > 0 && (() => {
+          // Calculate total accumulated Watt-minutes from 1-minute throttled DB snapshots
+          // Each snapshot row represents ~1 minute of continuous operational power
+          let sumGridWatts = 0;
+          let sumPvWatts = 0;
+          let sumLoadWatts = 0;
+          let sumBattWatts = 0;
+          let maxLoadWatts = 0;
+          let maxPvWatts = 0;
+          let sumTemp = 0;
+          let sumGridVolt = 0;
+
+          historicalData.forEach((row) => {
+            const gWatts = Number(row.grid_watts || 0);
+            const pWatts = Number(row.pv_power || 0);
+            const lWatts = Number(row.ac_output_watts || 0);
+            const bVolts = Number(row.battery_voltage || 0);
+            const bCurr = Number(row.battery_charging_current || 0);
+            const bWatts = bVolts > 0 ? Math.abs(bCurr * bVolts) : 0;
+
+            sumGridWatts += gWatts;
+            sumPvWatts += pWatts;
+            sumLoadWatts += lWatts;
+            sumBattWatts += bWatts;
+
+            if (lWatts > maxLoadWatts) maxLoadWatts = lWatts;
+            if (pWatts > maxPvWatts) maxPvWatts = pWatts;
+
+            sumTemp += Number(row.heatsink_temperature || 0);
+            sumGridVolt += Number(row.grid_voltage || 0);
+          });
+
+          const totalSnapshots = historicalData.length;
+          // Converting 1-minute snapshot averages to Energy Units (kWh): (Total Watt-Minutes) / 60 / 1000
+          const gridKwh = (sumGridWatts / 60 / 1000).toFixed(2);
+          const pvKwh = (sumPvWatts / 60 / 1000).toFixed(2);
+          const battKwh = (sumBattWatts / 60 / 1000).toFixed(2);
+          const loadKwh = (sumLoadWatts / 60 / 1000).toFixed(2);
+
+          const avgGridVoltage = (sumGridVolt / totalSnapshots).toFixed(1);
+          const avgTemp = (sumTemp / totalSnapshots).toFixed(1);
+          const solarSelfSufficiency = sumLoadWatts > 0 ? Math.min(100, Math.round((sumPvWatts / sumLoadWatts) * 100)) : 0;
+
+          return (
+            <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-semibold text-card-foreground">
+                  Cumulative Energy & Operational Statistics ({timeRange === "today" ? "Today" : timeRange === "7d" ? "Last 7 Days" : timeRange === "30d" ? "Last 30 Days" : "Custom Range"})
+                </h4>
+                <span className="text-[11px] text-muted-foreground font-mono">
+                  {totalSnapshots} DB Snapshots Analyzed
+                </span>
+              </div>
+
+              {/* 4 Core Energy Units Metric Tiles */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {/* Total Grid Usage */}
+                <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3.5 shadow-xs">
+                  <div className="text-[11px] font-medium text-sky-600 dark:text-sky-400">Total Grid Usage</div>
+                  <div className="mt-1 text-lg font-bold tracking-tight text-card-foreground">
+                    {gridKwh} <span className="text-xs font-semibold text-muted-foreground">kWh (Units)</span>
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-muted-foreground font-mono">
+                    {sumGridWatts.toLocaleString()} W Cumulative
+                  </div>
+                </div>
+
+                {/* Total Solar PV Generation */}
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 shadow-xs">
+                  <div className="text-[11px] font-medium text-amber-600 dark:text-amber-400">Total Solar PV Yield</div>
+                  <div className="mt-1 text-lg font-bold tracking-tight text-card-foreground">
+                    {pvKwh} <span className="text-xs font-semibold text-muted-foreground">kWh (Units)</span>
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-muted-foreground font-mono">
+                    {sumPvWatts.toLocaleString()} W Cumulative
+                  </div>
+                </div>
+
+                {/* Total Battery Energy */}
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 shadow-xs">
+                  <div className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">Total Battery Flow</div>
+                  <div className="mt-1 text-lg font-bold tracking-tight text-card-foreground">
+                    {battKwh} <span className="text-xs font-semibold text-muted-foreground">kWh (Units)</span>
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-muted-foreground font-mono">
+                    {sumBattWatts.toLocaleString()} W Cumulative
+                  </div>
+                </div>
+
+                {/* Total House Consumption */}
+                <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-3.5 shadow-xs">
+                  <div className="text-[11px] font-medium text-purple-600 dark:text-purple-400">Total Consumption</div>
+                  <div className="mt-1 text-lg font-bold tracking-tight text-card-foreground">
+                    {loadKwh} <span className="text-xs font-semibold text-muted-foreground">kWh (Units)</span>
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-muted-foreground font-mono">
+                    {sumLoadWatts.toLocaleString()} W Cumulative
+                  </div>
+                </div>
+              </div>
+
+              {/* Useful Operational Insights Grid */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs pt-1">
+                <div className="rounded-xl border border-border/60 bg-card p-3">
+                  <div className="text-[11px] text-muted-foreground font-medium">Peak Solar Generation</div>
+                  <div className="mt-1 text-sm font-semibold text-card-foreground">{maxPvWatts} W</div>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-card p-3">
+                  <div className="text-[11px] text-muted-foreground font-medium">Peak Active Load</div>
+                  <div className="mt-1 text-sm font-semibold text-card-foreground">{maxLoadWatts} W</div>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-card p-3">
+                  <div className="text-[11px] text-muted-foreground font-medium">Solar Coverage Ratio</div>
+                  <div className="mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400">{solarSelfSufficiency}% Self-Sufficient</div>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-card p-3">
+                  <div className="text-[11px] text-muted-foreground font-medium">Avg Grid / Heatsink</div>
+                  <div className="mt-1 text-sm font-semibold text-card-foreground">{avgGridVoltage}V • {avgTemp}°C</div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Comprehensive Diagnostics Metrics Table */}
